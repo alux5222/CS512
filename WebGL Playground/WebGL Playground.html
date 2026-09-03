@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>UNM CS 412/512 WebGL Playground</title>
+  <style>
+    body {
+      background: #111;
+      color: #ccc;
+      font-family: monospace;
+    }
+
+    textarea {
+      background: #222;
+      color: #0f0;
+      font: 14px monospace;
+      width: 400px;
+      height: 250px;
+    }
+
+    canvas {
+      border: 1px solid #444;
+    }
+  </style>
+<script type="text/javascript" nonce="cdc73e8a91484986acec8ea4047" src="//local.adguard.org?ts=1787589401098&amp;type=content-script&amp;dmn=cdn.inst-fs-pdx-prod.inscloudgate.net&amp;url=https%3A%2F%2Fcdn.inst-fs-pdx-prod.inscloudgate.net%2F342ec520-3f70-4b61-9538-62a644c89db3%2Fhw1.html%3Ftoken%3DeyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6ImNkbiJ9.eyJyZXNvdXJjZSI6Ii8zNDJlYzUyMC0zZjcwLTRiNjEtOTUzOC02MmE2NDRjODlkYjMvaHcxLmh0bWwiLCJ0ZW5hbnQiOiJjYW52YXMiLCJpYXQiOjE3ODc1NTgyNDUsImV4cCI6MTc4NzY0NDY0NSwianRpIjoiNmM1OGQ5NGYtZTRjYS00MjQyLTgwYWEtYzc0ZGVhZGVjZmRlIn0.tRdLcMp69yBGBg1ohmstbTnJtyA--eauIh1zlm9-_ElMqvy1jm5GMYL4VWu_wvf9-Er2eI62_gqD-3_bDYFHVQ%26download%3D1%26content_type%3Dtext%252Fhtml&amp;app=com.microsoft.edgemac&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="cdc73e8a91484986acec8ea4047" src="//local.adguard.org?ts=1787589401098&amp;name=AdGuard%20Extra&amp;type=user-script"></script></head>
+
+<body>
+  <h2>WebGL Test</h2>
+  <p>Edit vertex and fragment shaders on the left, and you can see the result on the right instantly. <br>
+    Please copy your edits to the source code if you want to save them, as the playground doesn't save them to the file.
+  </p>
+
+  <div style="display: flex; gap: 10px; align-items: flex-start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div>
+        <b>Vertex Shader</b><br>
+        <textarea id="vsEditor"></textarea>
+      </div>
+      <div>
+        <b>Fragment Shader</b><br>
+        <textarea id="fsEditor"></textarea>
+      </div>
+    </div>
+
+    <div>
+      <canvas id="glcanvas" width="600" height="600"></canvas>
+    </div>
+  </div>
+
+  <!-- Vertex Shader -->
+  <script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
+  in vec3 aPosition;
+  in vec3 aColor;
+
+  uniform float uTime; // time in sec
+  out vec3 vColor;
+  out vec2 v_uv;
+
+  void main() {
+    // Pass UV coordinates to fragment shader
+   // v_uv = aPosition.xy * 0.5 + 0.5;
+    // Pass color to fragment shader
+   // vColor = aColor;
+    
+    //float bounceRange = 0.8; 
+    //float bounce = sin(uTime * 3.0) * bounceRange;
+  
+    // Apply bounce to Y position
+    //vec3 newPos = aPosition;
+    //newPos.y += bounce;
+    // --- BOUNCE LOGIC END ---
+
+    // Pass UV coordinates (based on original position or new? usually original is fine for texture)
+    // If you want UVs to move with the triangle, use newPos.xy
+    //v_uv = newPos.xy * 0.5 + 0.5; 
+    //vColor = aColor;
+
+
+    // Set position (only one gl_Position!)
+    //gl_Position = vec4(aPosition, 1.7);
+
+    
+    //gl_Position = vec4(newPos, 1.0);
+
+    float bounceX = sin(uTime * 2.0) * 0.1;
+    float bounceY = sin(uTime * 3.5) * 0.1;
+    
+    // Create a new position by adding the bounce to the original
+    vec3 newPos = aPosition;
+    newPos.x += bounceX;
+    newPos.y += bounceY;
+    // ---------------------
+
+    // Pass UV coordinates based on the NEW position
+    v_uv = newPos.xy * 0.5 + 0.5; 
+    
+    // Pass color to fragment shader
+    vColor = aColor;
+    
+    // Set the final position with W = 1.0
+    gl_Position = vec4(newPos, 1.0);
+}
+  
+  </script>
+
+  <!-- Fragment Shader -->
+  <script id="fragment-shader" type="x-shader/x-fragment">#version 300 es
+  precision mediump float;
+  in vec3 vColor;
+  in vec2 v_uv;
+  out vec4 fragColor;
+
+  uniform float uTime;
+
+  void main() {
+    // Create a moving wave pattern
+    //float wave = sin(v_uv.x * 10.0 + uTime) * 0.5 + 0.5;
+
+    //float dist = distance(v_uv, vec2(0.5, 0.5));
+    //float rings = sin(dist * 20.0 - uTime * 3.0) * 0.5 + 0.5;
+    
+    // Animate color based on time
+    //float r = sin(uTime * 2.0 + 2.0); // * 0.5 + 0.5;
+    //float g = sin(uTime * 2.0 + 2.0);// * 0.5 + 0.5;
+    //float b = sin(uTime * 2.0 + 2.0);// * 0.5 + 0.5;
+    
+    // Mix colors based on wave
+    //fragColor = vec4(mix(vec3(r, g, b), vec3(1.0, 1.0, 1.0), wave), 1.0);
+    //fragColor = vec4(mix(vec3(r, g, b), vec3(1.0, 1.0, 1.0), rings), 1.0);
+
+
+    // 1. Calculate distance from center for the "Rings" effect
+      float dist = distance(v_uv, vec2(0.5, 0.5));
+      
+      // 2. Create the ring pattern (moving outwards)
+      float rings = sin(dist * 20.0 - uTime * 3.0) * 0.5 + 0.5;
+      
+      // 3. Create vibrant, full-range colors (0 to 1)
+      // The original code had *0.5 + 0.5 commented out, which would make colors go negative (clamped to 0)
+      float r = sin(uTime * 1.5 + 0.0) * 0.5 + 0.5;
+      float g = sin(uTime * 1.5 + 2.0) * 0.5 + 0.5;
+      float b = sin(uTime * 1.5 + 4.0) * 0.5 + 0.5;
+      
+      // 4. Mix the moving color with the original vertex color
+      // If rings is 1.0 -> shows the animated color
+      // If rings is 0.0 -> shows the original triangle color (Red/Green/Blue)
+      vec3 finalColor = mix(vColor, vec3(r, g, b), rings);
+      
+      // 5. Output
+      fragColor = vec4(finalColor, 1.0);
+  }
+  </script>
+
+  <script src="triangle.js"></script>
+<script>
+  function createShader(gl, type, source) {
+    let shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader));
+    }
+    return shader;
+  }
+
+  function createProgram(gl, vsSource, fsSource) {
+    let vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    let fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    let prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog));
+    }
+    return prog;
+  }
+
+  // --- WebGL init ---
+  const canvas = document.getElementById("glcanvas");
+  const gl = canvas.getContext("webgl2", { premultipliedAlpha: false });
+  if (!gl) alert("WebGL2 not supported");
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const vsEditor = document.getElementById("vsEditor");
+  const fsEditor = document.getElementById("fsEditor");
+  vsEditor.value = document.getElementById("vertex-shader").textContent;
+  fsEditor.value = document.getElementById("fragment-shader").textContent;
+
+  let program, posLoc, colorLoc, timeLoc;
+  let posBuffer, colorBuffer;
+
+  // --- Buffers ---
+  function initBuffers() {
+    posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+    colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+  }
+
+  initBuffers();
+
+  function initShaderProgram() {
+    try {
+      program = createProgram(gl, vsEditor.value, fsEditor.value);
+      gl.useProgram(program);
+      posLoc = gl.getAttribLocation(program, "aPosition");
+      colorLoc = gl.getAttribLocation(program, "aColor");
+      timeLoc = gl.getUniformLocation(program, "uTime"); // Must match shader name
+      
+      if (!timeLoc) console.error("Uniform 'uTime' not found in shader!");
+    } catch (e) { 
+      console.error("Shader Init Error:", e); 
+    }
+  }
+
+  initShaderProgram();
+
+  // Remove the old vsEditor.onkeyup/fsEditor.onkeyup if you want it to run automatically, 
+  // or keep if you want to recompile on edit. 
+  // Just ensure initShaderProgram doesn't crash if buffers aren't ready.
+  vsEditor.onkeyup = initShaderProgram;
+  fsEditor.onkeyup = initShaderProgram;
+
+  // --- RENDER LOOP (Single Loop) ---
+  function render() {
+    if (!program) return;
+
+    // Clear
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+
+    // Position buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+    // Color buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.enableVertexAttribArray(colorLoc);
+    gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
+
+    // Update Time Uniform
+    // Use performance.now() for smooth, high-precision timing
+    const now = performance.now() / 1000.0; // Convert to seconds
+    if (timeLoc) {
+      gl.uniform1f(timeLoc, now);
+    }
+
+    // Draw
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // Request next frame
+    requestAnimationFrame(render);
+  }
+
+  // Start the loop
+  window.onload = function () {
+    requestAnimationFrame(render); // <-- RESTARTED with single loop
+  };
+</script>
+  <script>
+    // function createShader(gl, type, source) {
+    //   let shader = gl.createShader(type);
+    //   gl.shaderSource(shader, source);
+    //   gl.compileShader(shader);
+    //   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    //     throw new Error(gl.getShaderInfoLog(shader));
+    //   }
+    //   return shader;
+    // }
+
+    // function createProgram(gl, vsSource, fsSource) {
+    //   let vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    //   let fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    //   let prog = gl.createProgram();
+    //   gl.attachShader(prog, vs);
+    //   gl.attachShader(prog, fs);
+    //   gl.linkProgram(prog);
+    //   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    //     throw new Error(gl.getProgramInfoLog(prog));
+    //   }
+    //   return prog;
+    // }
+
+
+    // // --- WebGL init ---
+    // const canvas = document.getElementById("glcanvas");
+    // // const gl = canvas.getContext("webgl2");
+    // const gl = canvas.getContext("webgl2", { premultipliedAlpha: false });
+    // if (!gl) alert("WebGL2 not supported");
+
+    // gl.enable(gl.BLEND);
+    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+
+    // const vsEditor = document.getElementById("vsEditor");
+    // const fsEditor = document.getElementById("fsEditor");
+    // vsEditor.value = document.getElementById("vertex-shader").textContent;
+    // fsEditor.value = document.getElementById("fragment-shader").textContent;
+
+    // let program, posLoc, colorLoc, timeLoc;
+    // let posBuffer, colorBuffer;
+
+    // // --- Buffers ---
+    // function initBuffers() {
+    //   posBuffer = gl.createBuffer();
+    //   gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    //   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+    //   colorBuffer = gl.createBuffer();
+    //   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    //   gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+    // }
+
+    // initBuffers();
+
+    // function initShaderProgram() {
+    //   try {
+    //     program = createProgram(gl, vsEditor.value, fsEditor.value);
+    //     gl.useProgram(program);
+    //     posLoc = gl.getAttribLocation(program, "aPosition");
+    //     colorLoc = gl.getAttribLocation(program, "aColor");
+    //     timeLoc = gl.getUniformLocation(program, "uTime");
+    //   } catch (e) { console.error(e); }
+    // }
+
+    // initShaderProgram();
+
+    // //hot compile when any input in the playground text area
+    // vsEditor.onkeyup = initShaderProgram;
+    // fsEditor.onkeyup = initShaderProgram;
+
+    // let startTime = Date.now();
+    // function render() {
+    //   //clear the canvas
+    //   gl.clearColor(0, 0, 0, 1);
+    //   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    //   gl.enable(gl.DEPTH_TEST);
+
+    //   // Position buffer binding
+    //   gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    //   gl.enableVertexAttribArray(posLoc);
+    //   gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+    //   // Color buffer binding
+    //   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    //   gl.enableVertexAttribArray(colorLoc);
+    //   gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
+
+    //   //delta time in ms
+    //   let deltaTime = Date.now() - startTime;
+    //   //set time in seconds
+    //   gl.uniform1f(timeLoc, deltaTime/1000.0);
+
+    //   // Draw content
+    //   gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // }
+
+
+    // // function animate() {
+    // //   const time = performance.now() * 0.001;
+    // //   gl.uniform1f(u_time, time);
+    // //   gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // //   requestAnimationFrame(animate);
+    // // }
+
+    // // Initialize when page loads
+    // window.onload = function () {
+    //   setInterval(render, 30);
+    // };
+  </script>
+</body>
+
+</html>
