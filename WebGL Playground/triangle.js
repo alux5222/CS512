@@ -1,6 +1,6 @@
 // --- Triangle ---
 const positions = new Float32Array([
-   0.0,  1.0, 0.0,  // vertex 1
+   0.0,  1.0, 0.0,  // vertex 1 top
   -1.0, 0.0, 0.0,  // vertex 2
    1.0, 0.0, 0.0   // vertex 3
 ]);
