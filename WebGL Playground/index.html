@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <title>UNM CS 412/512 WebGL Playground</title>
+  <title>UNM CS 412/512 HW3</title>
   <style>
     body {
       background: #111;
@@ -13,178 +13,107 @@
 
     textarea {
       background: #222;
-      color: rgb(166, 255, 0);
+      color: #0f0;
       font: 14px monospace;
       width: 400px;
       height: 250px;
     }
 
     canvas {
-      border: 1px solid #444;
+      border: 1px solid #00ffff;
     }
   </style>
-<script type="text/javascript" nonce="cdc73e8a91484986acec8ea4047" src="//local.adguard.org?ts=1787589401098&amp;type=content-script&amp;dmn=cdn.inst-fs-pdx-prod.inscloudgate.net&amp;url=https%3A%2F%2Fcdn.inst-fs-pdx-prod.inscloudgate.net%2F342ec520-3f70-4b61-9538-62a644c89db3%2Fhw1.html%3Ftoken%3DeyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6ImNkbiJ9.eyJyZXNvdXJjZSI6Ii8zNDJlYzUyMC0zZjcwLTRiNjEtOTUzOC02MmE2NDRjODlkYjMvaHcxLmh0bWwiLCJ0ZW5hbnQiOiJjYW52YXMiLCJpYXQiOjE3ODc1NTgyNDUsImV4cCI6MTc4NzY0NDY0NSwianRpIjoiNmM1OGQ5NGYtZTRjYS00MjQyLTgwYWEtYzc0ZGVhZGVjZmRlIn0.tRdLcMp69yBGBg1ohmstbTnJtyA--eauIh1zlm9-_ElMqvy1jm5GMYL4VWu_wvf9-Er2eI62_gqD-3_bDYFHVQ%26download%3D1%26content_type%3Dtext%252Fhtml&amp;app=com.microsoft.edgemac&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="cdc73e8a91484986acec8ea4047" src="//local.adguard.org?ts=1787589401098&amp;name=AdGuard%20Extra&amp;type=user-script"></script></head>
+</head>
 
 <body>
-  <h2>WebGL Test</h2>
-  <p>Edit vertex and fragment shaders on the left, and you can see the result on the right instantly. <br>
-    Please copy your edits to the source code if you want to save them, as the playground doesn't save them to the file.
-  </p>
+  <h2>Interactive Controls & Geometric Primitives</h2>
+  <p>Edit vertex and fragment shaders on the left to get the result instantly.<br>
+  Use mouse to drag and rotate the cube. <br>
+Use arrow keys and w, s keys to move the camera.<br>
+Save your code to source file if you want to save it.<br>
+Press F12 to see the console for debugging.</p>
 
   <div style="display: flex; gap: 10px; align-items: flex-start;">
     <div style="display: flex; flex-direction: column; gap: 10px;">
       <div>
         <b>Vertex Shader</b><br>
-        <textarea id="vsEditor"></textarea>
+        <textarea id="vertEditor"></textarea>
       </div>
       <div>
         <b>Fragment Shader</b><br>
-        <textarea id="fsEditor"></textarea>
+        <textarea id="fragEditor"></textarea>
       </div>
     </div>
-
     <div>
-      <canvas id="glcanvas" width="600" height="600"></canvas>
+      <canvas id="glcanvas" width="400" height="400"></canvas>
+      <!-- Simple menu for selecting shapes, zoom, buttons -->
+      <div style="margin-top: 10px;">
+        <label for="shapeSelect">Shape:</label>
+        <select id="shapeSelect">
+          <option value="cube">Cube</option>
+          <option value="torus">Torus</option>
+          <option value="triangle">Pyramid</option>
+        </select>
+      </div>
+      
+      <div style="margin-top: 10px;">
+        <label for="zoomSlider">Zoom:</label>
+        <input
+          type="range"
+          id="zoomSlider"
+          min="2"
+          max="12"
+          value="3"
+          step="0.1"
+        >
+        <span id="zoomValue">6</span>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <button id="rotateButton">Rotate</button>
+        <button id="scaleButton">Scale</button>
+      </div>
+
     </div>
   </div>
 
-  <!-- Vertex Shader -->
-   <script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
-in vec3 aPosition;
-in vec3 aColor;
+  <!-- Vertex shader -->
+  <script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
+  in vec3 aPosition;
+  in vec3 aColor;
 
-uniform highp float uTime;
+  uniform float uTime; //time in sec
+  uniform mat4 uModelViewMatrix;
+  uniform mat4 uProjectionMatrix;
+  uniform mat4 uModelTransformationMatrix;
 
-out vec3 vColor;
-out vec2 v_uv;
+  out vec3 vColor;
 
-mat4 matrixTranslation(float x, float y, float z){
-return mat4(1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        x, y, z, 1);
-}
-
-mat4 matrixScaling(float x, float y, float z){
-return mat4(x, 0.0, 0.0, 0.0,
-        0.0, y, 0.0, 0.0,
-        0.0, 0.0, z, 0.0,
-        0.0, 0.0, 0.0, 1);
-}
-
-mat4 matrixRotation(float angle){
-   return mat4(
-       cos(angle), -sin(angle), 0.0, 0.0,
-        sin(angle), cos(angle),  0.0, 0.0,
-        0.0, 0.0,   1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0);
-}
-
-mat4 matrixMirroring(float x, float y, float z){
-return mat4(x, 0.0, 0.0, 0.0,
-            0.0, y, 0.0, 0.0,
-            0.0, 0.0, z, 0.0,
-            0.0, 0.0, 0.0, 1);
-}
-
-mat4 matrixShearing(float x, float y, float z){
-    return mat4(
-        1.0, x,   x,   0.0,
-        y,   1.0, y,   0.0,
-        z,   z,   1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0);
-}
-
-void main() {
-
-    //gl_Position = vec4(aPosition, 1.0);
-    //vColor = aColor;
-    
-    //Modify position
-    vec3 position = aPosition;
-
-    //gl_Position = matrixTranslation(sin(uTime) * 0.5, sin(uTime) * 0.5,0.0) * vec4(position, 1.7);
-    
-    //gl_Position = matrixMirroring(sin(uTime) * -1.0, 1.0, 1.0) * vec4(position, 1.7);
-    
-    //gl_Position = matrixScaling(sin(uTime) * 0.5, sin(uTime) * 0.5, 0.0) * vec4(position, 1.7);
-    
-    //gl_Position = matrixRotation(radians(sin(uTime) * 90.0)) * vec4(position, 1.7);
-
-    //gl_Position = matrixShearing(sin(uTime) * 0.5, sin(uTime) * 0.5,0.0) * vec4(position, 1.7);
-    
-    gl_Position = matrixShearing(sin(uTime) * 0.5, sin(uTime) * 0.5,0.0) 
-                 * matrixScaling(sin(uTime) * 0.5, sin(uTime) * 0.5, 0.0)
-                 * matrixMirroring(sin(uTime) * -1.0, 1.0, 1.0)
-                 * vec4(position, 1.7);
-
-    //Pass color to fragment shader afterposition changed
+  void main() {
+    gl_Position = uProjectionMatrix * uModelViewMatrix * uModelTransformationMatrix * vec4(aPosition,1.0);
     vColor = aColor;
-    //Pass UV coordinates
-    v_uv = position.xy * 0.5 + 0.5;
-}
+  }
+  </script>
+    <!-- Fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">#version 300 es
+    precision mediump float;
+    in vec3 vColor;
 
-</script>
+    out vec4 fragColor;
 
-<!--    
- // Calculate a simple wave displacement based on time
-  float wave = sin(aPosition.x * 3.0 + uTime) * 0.05;
+    void main() {
+      fragColor = vec4(vColor,1.0);
+    }
+    </script>
+
+  <script src="primitives.js"></script>
+  <script src="transformations.js"></script>
   
-  vec3 newPosition = aPosition;
-  newPosition.y += wave;
-  
-  gl_Position = vec4(newPosition, 1.7);  
-  vColor = aColor;
 
-  v_uv = aPosition.xz * 0.5 + 0.5;  
--->
+  <script type="module">
+    import { shapes } from './controls.js';
 
-  <!-- Fragment Shader -->
-   <script id="fragment-shader" type="x-shader/x-fragment">#version 300 es
-precision mediump float;
-
-in vec3 vColor;
-in vec2 v_uv;
-
-out vec4 fragColor;
-
-uniform highp float uTime;
-
-//uniform float uTime; 
-//This did not work, because uTime 
-//exists in both shaders, but WebGL is seeing 
-//different precision for the uniform in each shader.
-
-void main() {
-    //fragColor = vec4(vColor, 1.0);
-
-    //Distance from center
-    float dist = distance(v_uv, vec2(0.5, 0.5));
-
-    //float rings = sin(dist * 20.0 - uTime * 3.0);
-    //rings = rings * 0.5 + 0.5;
-
-    //Create the ring pattern (moving outwards)
-     float rings = sin(dist * 20.0 - uTime * 3.0) * 0.5 + 0.5;
-
-    //Animate color based on time (Fixed: normalized to 0-1 range)
-    //We add different offsets (+0.0, +2.0, +4.0) to make R, G, and B differen
-    float r = sin(uTime * 2.0 + 0.0);
-    float g = sin(uTime * 2.0 + 2.0); 
-    float b = sin(uTime * 2.0 + 4.0); 
-
-    //Mix the animated rainbow color with the original vertex color
-    //When rings = 1.0 (peak), show the rainbow colors
-    //When rings = 0.0 (trough), show the original Red/Green/Blue triangle corners
-    vec3 animatedColor = vec3(r, g, b);
-    vec3 finalColor = mix(vColor, animatedColor, rings);
-
-    fragColor = vec4(finalColor, 1.0);
-}
-</script>
-  <script src="triangle.js"></script>
-  <script>
-        function createShader(gl, type, source) {
+    function createShader(gl, type, source) {
       let shader = gl.createShader(type);
       gl.shaderSource(shader, source);
       gl.compileShader(shader);
@@ -207,152 +136,221 @@ void main() {
       return prog;
     }
 
-
-    // --- WebGL init ---
+    // WebGL setup
     const canvas = document.getElementById("glcanvas");
-    // const gl = canvas.getContext("webgl2");
-    const gl = canvas.getContext("webgl2", { premultipliedAlpha: false });
+    const gl = canvas.getContext("webgl2");
     if (!gl) alert("WebGL2 not supported");
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    let vertEditor = document.getElementById("vertEditor");
+    let fragEditor = document.getElementById("fragEditor");
+    vertEditor.value = document.getElementById("vertex-shader").textContent;
+    fragEditor.value = document.getElementById("fragment-shader").textContent;
 
-
-    const vsEditor = document.getElementById("vsEditor");
-    const fsEditor = document.getElementById("fsEditor");
-    vsEditor.value = document.getElementById("vertex-shader").textContent;
-    fsEditor.value = document.getElementById("fragment-shader").textContent;
-
-    let program, posLoc, colorLoc, timeLoc;
-    let posBuffer, colorBuffer;
-
-    // --- Buffers ---
-    function initBuffers() {
-      posBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-
-      colorBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+    let program, posLoc, colorLoc, timeLoc, uMVM, uPM, uMTM;
+    let vbo, nbo, ibo;
+     
+    let currentShape;
+    // Buffers
+    function initBuffers(sSelect) {
+      currentShape = shapes[sSelect];
+      vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      // gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, currentShape.positions, gl.STATIC_DRAW);
+      nbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+      gl.bufferData(gl.ARRAY_BUFFER, currentShape.colors, gl.STATIC_DRAW);
+      ibo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo); 
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, currentShape.indices, gl.STATIC_DRAW);
     }
+    // initBuffers(shapeSelect.value);
+    const shapeSelect = document.getElementById("shapeSelect");
 
-    initBuffers();
-function initShaderProgram() {
-    try {
-        const newProgram = createProgram(
-            gl,
-            vsEditor.value,
-            fsEditor.value
-        );
+    initBuffers(shapeSelect.value);
+    shapeSelect.addEventListener("change", function () {
+      initBuffers(this.value);
+    });
 
-        // Only replace the program if compilation succeeded
-        program = newProgram;
-
+    function initShaderProgram() {
+      try {
+        program = createProgram(gl, vertEditor.value, fragEditor.value);
         gl.useProgram(program);
-
         posLoc = gl.getAttribLocation(program, "aPosition");
         colorLoc = gl.getAttribLocation(program, "aColor");
         timeLoc = gl.getUniformLocation(program, "uTime");
-
-        console.log("Shader compiled successfully");
-
-    } catch (e) {
-        console.error("Shader error:", e);
+        uMVM = gl.getUniformLocation(program, "uModelViewMatrix");
+        uPM = gl.getUniformLocation(program, "uProjectionMatrix");
+        uMTM = gl.getUniformLocation(program, "uModelTransformationMatrix");
+      } catch (e) { console.error(e); }
     }
-}
-
-    // function initShaderProgram() {
-    //   try {
-    //     program = createProgram(gl, vsEditor.value, fsEditor.value);
-    //     gl.useProgram(program);
-    //     posLoc = gl.getAttribLocation(program, "aPosition");
-    //     colorLoc = gl.getAttribLocation(program, "aColor");
-    //     timeLoc = gl.getUniformLocation(program, "uTime");
-    //   } catch (e) { console.error(e); }
-    // }
-
     initShaderProgram();
+    vertEditor.onkeyup = initShaderProgram;
+    fragEditor.onkeyup = initShaderProgram;
 
-    //hot compile when any input in the playground text area
-    vsEditor.onkeyup = initShaderProgram;
-    fsEditor.onkeyup = initShaderProgram;
+    // Mouse and keyboard interactions
+    let mouseDown = false, lastX, lastY, cubeRotX = 0, cubeRotY = 0;
+    let camX = 0, camY = 0, camZ = -6;
+    
+    // -------------------------------------------------------------
+    // Rotate and scale animation button that get the event listener
+    let rotateAnimation = false;
+    let scaleAnimation = false;
+    let animationScale = 1.0;
+    
+    const rotateButton = document.getElementById("rotateButton");
+    const scaleButton = document.getElementById("scaleButton");
+
+    rotateButton.addEventListener("click", () => {
+      rotateAnimation = !rotateAnimation;
+      rotateButton.textContent = rotateAnimation ? "Stop Rotate" : "Rotate";
+    });
+
+    scaleButton.addEventListener("click", () => {
+      scaleAnimation = !scaleAnimation;
+      scaleButton.textContent = scaleAnimation ? "Stop Scale" : "Scale";
+    });
+    // ------------------------------------------------------------- 
+    canvas.addEventListener('mousedown', e => { mouseDown = true; lastX = e.clientX; lastY = e.clientY; });
+    canvas.addEventListener('mouseup', () => mouseDown = false);
+    canvas.addEventListener('mousemove', e => {
+      if (!mouseDown) return;
+      let dx = e.clientX - lastX;
+      let dy = e.clientY - lastY;
+      cubeRotY += dx * 0.01;
+      cubeRotX += dy * 0.01;
+      lastX = e.clientX; lastY = e.clientY;
+    });
+
+    document.addEventListener('keydown', e => {
+      const step = 0.2;
+      switch (e.key) {
+        case 'ArrowUp': camY += step; break;
+        case 'ArrowDown': camY -= step; break;
+        case 'ArrowLeft': camX -= step; break;
+        case 'ArrowRight': camX += step; break;
+        case 'w': camZ += step; break;
+        case 's': camZ -= step; break;
+      }
+    });
+
+
+    // Projection setup
+    let fov = Math.PI / 4, aspect = canvas.width / canvas.height, zNear = 0.1, zFar = 100;
+
+    let orthoSize = 2.5;
+
+    // Perspective and Orthographic projection
+    let projPerspective = perspective(fov, aspect, zNear, zFar);
+
+    let projOrtho = matMul(
+      box2Cube(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, zNear, zFar),
+      flipZ()
+    );
+
+    let proj = projOrtho;
+
+    // Zoom slider values
+    const zoomSlider = document.getElementById("zoomSlider");
+    const zoomValue = document.getElementById("zoomValue");
+    
+    // this function changest the values from the slider to the orthoSize, projOrtho and proj
+    function updateZoom() {
+      orthoSize = parseFloat(zoomSlider.value);
+
+      zoomValue.textContent = orthoSize;
+
+      projOrtho = matMul(
+        box2Cube(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, zNear, zFar),
+        flipZ()
+      );
+
+      proj = projOrtho;
+    }
+
+    zoomSlider.addEventListener("input", updateZoom);
+    updateZoom();
 
     let startTime = Date.now();
 
     function render() {
+      gl.enable(gl.DEPTH_TEST);
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      // Automatic vertical rotation
+      if (rotateAnimation) {
+        cubeRotY += 0.02;
+      }
 
-    if (!program) return;
+      // rotation matrices
+      let cx = Math.cos(cubeRotY), sx = Math.sin(cubeRotY);
+      let cy = Math.cos(cubeRotX), sy = Math.sin(cubeRotX);
+      let rotX = [1, 0, 0, 0, 0, cy, sy, 0, 0, -sy, cy, 0, 0, 0, 0, 1];
+      let rotY = [cx, 0, -sx, 0, 0, 1, 0, 0, sx, 0, cx, 0, 0, 0, 0, 1];
+      let cubeRotation = multiplyMat4(rotY, rotX);
 
-    gl.useProgram(program);
+      // init model-view matrix as identity matrix
+      let modelViewMatrix = mat4Identity();
+      // init model transformation matrix as identity matrix
+      let modelTransformationMatrix = mat4Identity();
 
-    // Position
-    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(
-        posLoc,
-        3,
-        gl.FLOAT,
-        false,
-        0,
-        0
-    );
+      //delta time in ms
+      let deltaTime = Date.now() - startTime;
+      // -----
+      // Animation time in seconds
+      let time = deltaTime / 1000;
 
-    // Color
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.enableVertexAttribArray(colorLoc);
-    gl.vertexAttribPointer(
-        colorLoc,
-        3,
-        gl.FLOAT,
-        false,
-        0,
-        0
-    );
+      // Scaling animation in that time frame
+      if (scaleAnimation) {
+        animationScale = 1.0 + 0.3 * Math.sin(time * 3.0);
+      }
 
-    // Time
-    const deltaTime = Date.now() - startTime;
+      // Apply rotation
+      modelTransformationMatrix = multiplyMat4(modelTransformationMatrix, cubeRotation);
 
-    if (timeLoc) {
-        gl.uniform1f(timeLoc, deltaTime / 1000.0);
+      // Apply scaling, here is where the new scales get store for every new frame
+      let scaleMatrix = [
+        animationScale, 0, 0, 0,
+        0, animationScale, 0, 0,
+        0, 0, animationScale, 0,
+        0, 0, 0, 1
+      ];
+      // ----
+      // object rotation
+      modelTransformationMatrix = multiplyMat4(modelTransformationMatrix, scaleMatrix);
+      // camera translation
+      modelViewMatrix = mat4Translate(modelViewMatrix, [camX, camY, camZ]);
+      
+      //set time in seconds
+      gl.uniform1f(timeLoc, deltaTime/1000.0);
+      gl.uniformMatrix4fv(uPM, false, proj);
+      gl.uniformMatrix4fv(uMVM, false, modelViewMatrix);
+      gl.uniformMatrix4fv(uMTM, false, modelTransformationMatrix);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+
+      // draw the object by the index order
+      gl.drawElements(gl.TRIANGLES, currentShape.indices.length, gl.UNSIGNED_SHORT, 0);
+      // It is what makes your animation keep running.
+      // like a built in loop
+      requestAnimationFrame(render);
+
     }
-
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-}
-
-
-    // function render() {
-    //   //clear the canvas
-    //   gl.clearColor(0, 0, 0, 1);
-    //   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    //   gl.enable(gl.DEPTH_TEST);
-
-    //   // Position buffer binding
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-    //   gl.enableVertexAttribArray(posLoc);
-    //   gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
-
-    //   // Color buffer binding
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    //   gl.enableVertexAttribArray(colorLoc);
-    //   gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
-
-    //   //delta time in ms
-    //   let deltaTime = Date.now() - startTime;
-    //   //set time in seconds
-    //   gl.uniform1f(timeLoc, deltaTime/1000.0);
-
-    //   // Draw content
-    //   gl.drawArrays(gl.TRIANGLES, 0, 3);
-    // }
 
     // Initialize when page loads
     window.onload = function () {
-      setInterval(render, 30);
-    };
+      // setInterval(render, 30);
+      render();
+    }
+
   </script>
 </body>
 
