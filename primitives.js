@@ -11,9 +11,8 @@ const positions = new Float32Array([
 ]);
 
 const colors = new Float32Array([
-  1.2,1.0,1.5,  1,1,1,  0,1,1, 1,1,1, 1,1,1, 1.1,0,1.1, 1,1,1, 1,1,0
+  1.2,1.0,0,  1,1,1,  1,0.35,0,  1,1,1,  0,0.8,1,  1,1,1,  0.5,0,1,  1,1,1,  0,1,0.3
 ]);
-
 
 const indices = new Uint16Array([
   // Front
@@ -71,9 +70,7 @@ function createTorus(R, r, segMajor, segMinor) {
 
       // Normal points outward from tube center to surface
       // Tube center at ring distance R from origin:
-      colors.push(0.9, 0.95, 1.0); //RGB
-
-
+      colors.push(0.00, 0.40, 1.00); 
     }
   }
 
@@ -99,21 +96,10 @@ function createTorus(R, r, segMajor, segMinor) {
            indices: new Uint16Array(indices) };
 }
 
-// --------------------------------------------------
 // Triangle in 3D = more like a pyramid
-// --------------------------------------------------
-
-// Three vertices.
 // Each vertex has an x, y, and z coordinate.
-//
-//        0
-//       / \
-//      /   \
-//     /     \
-//    1-------2
-
 const trianglePositions = new Float32Array([
-   // Base
+   // Base of pyramid
   -1.0, -1.0, -1.0,  // 0
    1.0, -1.0, -1.0,  // 1
    1.0, -1.0,  1.0,  // 2
@@ -131,11 +117,11 @@ const trianglePositions = new Float32Array([
 // Vertex 2 = blue
 
 const triangleColors = new Float32Array([
-  0.9, 0.95, 1.0,  // 0 - white/blue
-  0.9, 0.95, 1.0,  // 1
-  0.9, 0.95, 1.0,  // 2
-  0.9, 0.95, 1.0,  // 3
-  1.0, 1.0, 1.0    // 4 - bright white
+  0.98, 0.65, 0.25,  // 0 
+  0.98, 0.65, 0.25,  // 1 
+  0.98, 0.65, 0.25,  // 2 
+  0.98, 0.65, 0.25,  // 3 
+  0.98, 0.95, 0.90   // 4 light yellow white
 ]);
 
 
