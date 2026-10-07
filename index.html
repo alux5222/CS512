@@ -450,23 +450,58 @@ Press F12 to see the console for debugging.</p>
         translationTime = time * translationSpeed;
       }
       // Scaling animation in that time frame
-      if (scaleAnimation) {
-          animationScale = 1.0 + 0.3 * Math.sin(time * scaleSpeed);
-      }
+      // if (scaleAnimation) {
+      //     animationScale = 1.0 + 0.3 * Math.sin(time * scaleSpeed);
+      // }
 
       // Apply rotation
       modelTransformationMatrix = multiplyMat4(modelTransformationMatrix, cubeRotation);
 
       // Apply scaling, here is where the new scales get store for every new frame
-      let scaleMatrix = [
-        animationScale, 0, 0, 0,
-        0, animationScale, 0, 0,
-        0, 0, animationScale, 0,
+      // let scaleMatrix = [
+      //   animationScale, 0, 0, 0,
+      //   0, animationScale, 0, 0,
+      //   0, 0, animationScale, 0,
+      //   0, 0, 0, 1
+      // ];
+      // Chain reaction scaling
+      let rectangleScale = chainScale(time, 0.0);
+      let torus1Scale = chainScale(time, 0.25);
+      let torus2Scale = chainScale(time, 0.50);
+      let torus3Scale = chainScale(time, 0.95);
+
+      // Create scale matrices for each object
+      let rectangleScaleMatrix = [
+        rectangleScale, 0, 0, 0,
+        0, rectangleScale, 0, 0,
+        0, 0, rectangleScale, 0,
         0, 0, 0, 1
       ];
+
+      let torus1ScaleMatrix = [
+        torus1Scale, 0, 0, 0,
+        0, torus1Scale, 0, 0,
+        0, 0, torus1Scale, 0,
+        0, 0, 0, 1
+      ];
+
+      let torus2ScaleMatrix = [
+        torus2Scale, 0, 0, 0,
+        0, torus2Scale, 0, 0,
+        0, 0, torus2Scale, 0,
+        0, 0, 0, 1
+      ];
+
+      let torus3ScaleMatrix = [
+        torus3Scale, 0, 0, 0,
+        0, torus3Scale, 0, 0,
+        0, 0, torus3Scale, 0,
+        0, 0, 0, 1
+      ];
+
       // ----
       // object rotation
-      modelTransformationMatrix = multiplyMat4(modelTransformationMatrix, scaleMatrix);
+      // modelTransformationMatrix = multiplyMat4(modelTransformationMatrix, scaleMatrix);
       // camera translation
       modelViewMatrix = mat4Translate(modelViewMatrix, [camX, camY, camZ]);
       
@@ -514,19 +549,19 @@ Press F12 to see the console for debugging.</p>
         // drawShape(currentShape, [0, 0, 0], cubeRotation, scaleMatrix);
         drawShape(shapes.rectangle,addPosition([0, -2.0, 0],chainTranslation(0.0, 0.5)),
           cubeRotation,
-          scaleMatrix
+          rectangleScaleMatrix
         );
         drawShape(shapes.torus1,addPosition([0, -1.0, 0],chainTranslation(0.25, 0.5)),
           torusRotationTo90deg,
-          scaleMatrix
+          torus1ScaleMatrix
         );
         drawShape(shapes.torus2,addPosition([0, 0.5, 0],chainTranslation(0.50, 0.5)),
           torusRotationTo90deg,
-          scaleMatrix
+          torus2ScaleMatrix
         );
         drawShape(shapes.torus3,addPosition([0, 1.60, 0],chainTranslation(0.75, 0.5)),
           torusRotationTo90deg,
-          scaleMatrix
+          torus3ScaleMatrix
         );
       }
       // It is what makes your animation keep running.
@@ -540,6 +575,14 @@ Press F12 to see the console for debugging.</p>
         0,
         0
       ];
+    }
+
+    function chainScale(time, delay, amount = 0.3) {
+      if (!scaleAnimation) {
+        return 1.0;
+      }
+
+      return 1.0 + amount * Math.sin(time * scaleSpeed - delay);
     }
 
     function addPosition(base, movement) {
