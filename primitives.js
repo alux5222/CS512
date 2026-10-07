@@ -70,7 +70,24 @@ function createTorus(R, r, segMajor, segMinor) {
 
       // Normal points outward from tube center to surface
       // Tube center at ring distance R from origin:
-      colors.push(0.00, 0.40, 1.00); 
+      const wave1 = Math.sin(u * 5.0 + v * 3.0);
+      const wave2 = Math.cos(u * 11.0 - v * 7.0) * 0.5;
+      
+      // Normalized heat intensity from 0.0 (charcoal) to 1.0 (white hot)
+      let heat = 0.5 + 0.5 * ((wave1 + wave2) / 1.5);
+      
+      // Boost heat on the inner ring of the torus for a dense core
+      heat = Math.min(1.0, heat * 1.15);
+
+      // Color mapping curve:
+      // Red rises fast (dominant warm base)
+      const red = Math.min(1.0, heat * 1.8); 
+      // Green rises exponentially (creates deep orange -> bright yellow)
+      const green = Math.pow(heat, 2.8); 
+      // Blue spikes only at peak temperatures (white-hot core)
+      const blue = Math.pow(heat, 7.0); 
+
+      colors.push(red, green, blue);
     }
   }
 
@@ -146,6 +163,59 @@ const triangleIndices = new Uint16Array([
   0, 2, 1
 ]);
 
+const rectanglePositions = new Float32Array([
+  // Front face
+  -1.0,  0.15, -0.5,  // 0
+   1.0,  0.15, -0.5,  // 1
+   1.0,  0.15,  0.5,  // 2
+  -1.0,  0.15,  0.5,  // 3
+
+  // Bottom face
+  -1.0, -0.15, -0.5,  // 4
+   1.0, -0.15, -0.5,  // 5
+   1.0, -0.15,  0.5,  // 6
+  -1.0, -0.15,  0.5   // 7
+]);
+
+const rectangleColors = new Float32Array([
+  // Front
+ 1.0,  0.95, 0.70, // Vertex 0: White-hot peak
+  1.0,  0.85, 0.30, // Vertex 1: Bright golden yellow
+  1.0,  0.75, 0.15, // Vertex 2: Warm yellow-orange
+  1.0,  0.90, 0.50,
+
+  // Back
+  0.8,  0.15, 0.00, // Vertex 4: Deep fiery red
+  0.4,  0.05, 0.00, // Vertex 5: Dark cooling ember red
+  0.2,  0.02, 0.00, // Vertex 6: Near-black charcoal red
+  0.6,  0.08, 0.00
+]);
+
+const rectangleIndices = new Uint16Array([
+  0, 1, 2,
+  0, 2, 3,
+
+  // Back
+  5, 4, 7,
+  5, 7, 6,
+
+  // Bottom
+  0, 4, 5,
+  0, 5, 1,
+
+  // Right
+  1, 5, 6,
+  1, 6, 2,
+
+  // Top
+  3, 2, 6,
+  3, 6, 7,
+
+  // Left
+  4, 0, 3,
+  4, 3, 7
+]);
+
 export {
   positions,
   colors,
@@ -153,5 +223,8 @@ export {
   trianglePositions,
   triangleColors,
   triangleIndices,
-  createTorus
+  createTorus,
+  rectanglePositions,
+  rectangleColors,
+  rectangleIndices
 };

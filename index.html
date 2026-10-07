@@ -50,9 +50,11 @@ Press F12 to see the console for debugging.</p>
       <div style="margin-top: 10px;">
         <label for="shapeSelect">Shape:</label>
         <select id="shapeSelect">
-          <option value="cube">Cube</option>
+          <!-- <option value="cube">Cube</option>
           <option value="torus">Torus</option>
           <option value="triangle">Pyramid</option>
+          <option value="rectangle">Rectangle</option> -->
+          <option value="cube">Chain Reaction</option>
         </select>
       </div>
       
@@ -68,43 +70,100 @@ Press F12 to see the console for debugging.</p>
         >
         <span id="zoomValue">6</span>
       </div>
+      <div style="margin-top: 10px;">
+      <label for="rotationSpeedSlider">Rotation Speed:</label>
+      <input
+        type="range"
+        id="rotationSpeedSlider"
+        min="0"
+        max="0.1"
+        value="0.02"
+        step="0.001"
+      >
+      <span id="rotationSpeedValue">0.020</span>
+    </div>
 
+    <div style="margin-top: 10px;">
+      <label for="scaleSpeedSlider">Scale Speed:</label>
+      <input
+        type="range"
+        id="scaleSpeedSlider"
+        min="0"
+        max="10"
+        value="3"
+        step="0.1"
+      >
+      <span id="scaleSpeedValue">3.0</span>
+    </div>
       <div style="margin-top: 10px;">
         <button id="rotateButton">Rotate</button>
         <button id="scaleButton">Scale</button>
+        <button id="translationButton">Play</button>
       </div>
 
     </div>
   </div>
 
   <!-- Vertex shader -->
-  <script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
-  in vec3 aPosition;
-  in vec3 aColor;
+    <script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
+      in vec3 aPosition;
+      in vec3 aColor;
 
-  uniform float uTime; //time in sec
-  uniform mat4 uModelViewMatrix;
-  uniform mat4 uProjectionMatrix;
-  uniform mat4 uModelTransformationMatrix;
+      uniform float uTime;
+      uniform mat4 uModelViewMatrix;
+      uniform mat4 uProjectionMatrix;
+      uniform mat4 uModelTransformationMatrix;
 
-  out vec3 vColor;
+      out vec3 vPosition;
+      out vec3 vColor;
+      out float vTime; // Pass time down to fragment shader
 
-  void main() {
-    gl_Position = uProjectionMatrix * uModelViewMatrix * uModelTransformationMatrix * vec4(aPosition,1.0);
-    vColor = aColor;
-  }
-  </script>
+      void main() {
+          vPosition = aPosition;
+          vColor = aColor;
+          vTime = uTime; // Forward time
+          gl_Position = uProjectionMatrix * uModelViewMatrix * uModelTransformationMatrix * vec4(aPosition, 1.0);
+      }
+    </script>
     <!-- Fragment Shader -->
     <script id="fragment-shader" type="x-shader/x-fragment">#version 300 es
-    precision mediump float;
+      precision mediump float;
+
+      in vec3 vPosition;
+      in vec3 vColor;
+      in float vTime; // Received from vertex shader
+
+      out vec4 fragColor;
+
+      void main() {
+          // Speed scaling factor
+          float t = vTime * 0.3;
+
+          // 1. Calculate spacetime wave
+          float wave1 = sin(vPosition.x * 5.0 + vPosition.y * 3.0 + t * 3.5);
+          float wave2 = cos(vPosition.z * 6.0 - vPosition.y * 2.5 + t * 5.0) * 0.5;
+          float flicker = sin(t * 18.0 + vPosition.x * 12.0) * 0.08;
+
+          //intensity
+          float heat = clamp(0.5 + 0.5 * ((wave1 + wave2) / 1.5) + flicker, 0.0, 1.0);
+
+          //Flame color mapping
+          float red   = min(1.0, heat * 1.8);
+          float green = pow(heat, 2.8);
+          float blue  = pow(heat, 7.0);
+
+          vec3 animatedFire = vec3(red, green, blue);
+          fragColor = vec4(mix(vColor, animatedFire, 0.85), 1.0);
+      }
+    </script>
+        <!-- precision mediump float;
     in vec3 vColor;
 
     out vec4 fragColor;
 
     void main() {
       fragColor = vec4(vColor,1.0);
-    }
-    </script>
+    } -->
 
   <script src="primitives.js"></script>
   <script src="transformations.js"></script>
@@ -153,19 +212,84 @@ Press F12 to see the console for debugging.</p>
     // Buffers
     function initBuffers(sSelect) {
       currentShape = shapes[sSelect];
+
       vbo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
       // gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
       gl.bufferData(gl.ARRAY_BUFFER, currentShape.positions, gl.STATIC_DRAW);
+
       nbo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
       gl.bufferData(gl.ARRAY_BUFFER, currentShape.colors, gl.STATIC_DRAW);
+
       ibo = gl.createBuffer();
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo); 
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, currentShape.indices, gl.STATIC_DRAW);
     }
     // initBuffers(shapeSelect.value);
     const shapeSelect = document.getElementById("shapeSelect");
+    const translationButton = document.getElementById("translationButton");
+
+    translationButton.addEventListener("click", () => {
+      translationAnimation = !translationAnimation;
+
+      if (translationAnimation) {
+        translationTime = 0;
+      }
+
+      translationButton.textContent =
+        translationAnimation ? "Stop" : "Play";
+    });
+
+
+    
+   function drawShape(shape, position, cubeRotation, scaleMatrix) {
+      // Upload positions
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, shape.positions, gl.STATIC_DRAW);
+      gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+      // Upload colors
+      gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+      gl.bufferData(gl.ARRAY_BUFFER, shape.colors, gl.STATIC_DRAW);
+      gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
+
+      // Upload indices
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+      gl.bufferData(
+        gl.ELEMENT_ARRAY_BUFFER,
+        shape.indices,
+        gl.STATIC_DRAW
+      );
+
+      // Transformation
+      let modelMatrix = mat4Identity();
+
+      modelMatrix = mat4Translate(modelMatrix, position);
+
+      modelMatrix = multiplyMat4(
+        modelMatrix,
+        cubeRotation
+      );
+
+      modelMatrix = multiplyMat4(
+        modelMatrix,
+        scaleMatrix
+      );
+
+      gl.uniformMatrix4fv(
+        uMTM,
+        false,
+        modelMatrix
+      );
+
+      gl.drawElements(
+        gl.TRIANGLES,
+        shape.indices.length,
+        gl.UNSIGNED_SHORT,
+        0
+      );
+    }
 
     initBuffers(shapeSelect.value);
     shapeSelect.addEventListener("change", function () {
@@ -190,16 +314,27 @@ Press F12 to see the console for debugging.</p>
 
     // Mouse and keyboard interactions
     let mouseDown = false, lastX, lastY, cubeRotX = 0, cubeRotY = 0;
-    let camX = 0, camY = 0, camZ = -6;
+    // let camX = 0, camY = 0, camZ = -6;
+    let camX = 0, camY = -0.5, camZ = -6;
     
     // -------------------------------------------------------------
     // Rotate and scale animation button that get the event listener
     let rotateAnimation = false;
     let scaleAnimation = false;
     let animationScale = 1.0;
+    let rotationSpeed = 0.02;
+    let scaleSpeed = 3.0;
+    let translationAnimation = false;
+    let translationTime = 0;
+    let translationSpeed = 1.5;
+
     
     const rotateButton = document.getElementById("rotateButton");
     const scaleButton = document.getElementById("scaleButton");
+    const rotationSpeedSlider = document.getElementById("rotationSpeedSlider");
+    const rotationSpeedValue = document.getElementById("rotationSpeedValue");
+    const scaleSpeedSlider = document.getElementById("scaleSpeedSlider");
+    const scaleSpeedValue = document.getElementById("scaleSpeedValue");
 
     rotateButton.addEventListener("click", () => {
       rotateAnimation = !rotateAnimation;
@@ -210,6 +345,16 @@ Press F12 to see the console for debugging.</p>
       scaleAnimation = !scaleAnimation;
       scaleButton.textContent = scaleAnimation ? "Stop Scale" : "Scale";
     });
+    rotationSpeedSlider.addEventListener("input", () => {
+      rotationSpeed = parseFloat(rotationSpeedSlider.value);
+      rotationSpeedValue.textContent = rotationSpeed.toFixed(3);
+      });
+    scaleSpeedSlider.addEventListener("input", () => {
+        scaleSpeed = parseFloat(scaleSpeedSlider.value);
+        scaleSpeedValue.textContent = scaleSpeed.toFixed(1);
+    });
+
+
     // ------------------------------------------------------------- 
     canvas.addEventListener('mousedown', e => { mouseDown = true; lastX = e.clientX; lastY = e.clientY; });
     canvas.addEventListener('mouseup', () => mouseDown = false);
@@ -280,7 +425,7 @@ Press F12 to see the console for debugging.</p>
 
       // Automatic vertical rotation
       if (rotateAnimation) {
-        cubeRotY += 0.02;
+          cubeRotY += rotationSpeed;
       }
 
       // rotation matrices
@@ -300,10 +445,13 @@ Press F12 to see the console for debugging.</p>
       // -----
       // Animation time in seconds
       let time = deltaTime / 1000;
-
+      // Translation chain reaction
+      if (translationAnimation) {
+        translationTime = time * translationSpeed;
+      }
       // Scaling animation in that time frame
       if (scaleAnimation) {
-        animationScale = 1.0 + 0.3 * Math.sin(time * 3.0);
+          animationScale = 1.0 + 0.3 * Math.sin(time * scaleSpeed);
       }
 
       // Apply rotation
@@ -337,14 +485,70 @@ Press F12 to see the console for debugging.</p>
       gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, 0, 0);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
 
+      let torusRotationTo90deg = mat4RotateX(
+        mat4Identity(),
+        Math.PI / 2
+      );
+
       // draw the object by the index order
-      gl.drawElements(gl.TRIANGLES, currentShape.indices.length, gl.UNSIGNED_SHORT, 0);
+            // gl.drawElements(gl.TRIANGLES, currentShape.indices.length, gl.UNSIGNED_SHORT, 0);
+      if (shapeSelect.value === "stack") {
+        drawShape(shapes.rectangle,addPosition([0, -2.0, 0],chainTranslation(0.0, 0.5)),
+          cubeRotation,
+          scaleMatrix
+        );
+        drawShape(shapes.torus1, addPosition([0, -1.0, 0], chainTranslation(0.25, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+        drawShape(shapes.torus2,addPosition([0, 0.5, 0],chainTranslation(0.50, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+        drawShape(shapes.torus3,addPosition([0, 1.60, 0],chainTranslation(0.75, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+      } else {
+        // Normal single-object drawing
+        // drawShape(currentShape, [0, 0, 0], cubeRotation, scaleMatrix);
+        drawShape(shapes.rectangle,addPosition([0, -2.0, 0],chainTranslation(0.0, 0.5)),
+          cubeRotation,
+          scaleMatrix
+        );
+        drawShape(shapes.torus1,addPosition([0, -1.0, 0],chainTranslation(0.25, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+        drawShape(shapes.torus2,addPosition([0, 0.5, 0],chainTranslation(0.50, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+        drawShape(shapes.torus3,addPosition([0, 1.60, 0],chainTranslation(0.75, 0.5)),
+          torusRotationTo90deg,
+          scaleMatrix
+        );
+      }
       // It is what makes your animation keep running.
       // like a built in loop
       requestAnimationFrame(render);
-
     }
 
+    function chainTranslation(delay, amplitude = 0.5) {
+      return [
+        amplitude * Math.sin(translationTime - delay),
+        0,
+        0
+      ];
+    }
+
+    function addPosition(base, movement) {
+      return [
+        base[0] + movement[0],
+        base[1] + movement[1],
+        base[2] + movement[2]
+      ];
+    }
     // Initialize when page loads
     window.onload = function () {
       // setInterval(render, 30);
