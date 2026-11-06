@@ -1,6 +1,7 @@
 const VERTEX_SHADER = `#version 300 es
 in vec3 aPosition;
 in vec3 aNormal;
+in vec3 aTangent;
 in vec2 aTexCoord;
 
 uniform mat4 uModelView;
@@ -8,15 +9,20 @@ uniform mat4 uProjection;
 
 out vec3 vPosition;
 out vec3 vNormal;
+out vec3 vTangent;
 out vec2 vTexCoord;
 
 void main() {
   vec4 p = uModelView * vec4(aPosition, 1.0);
-
   vPosition = p.xyz;
-  vNormal = mat3(uModelView) * aNormal;
-  vTexCoord = aTexCoord;
 
+  // Inverse transpose for potential non-uniform scalings
+  mat3 mv = mat3(uModelView);
+  vNormal = transpose(inverse(mv)) * aNormal;
+
+
+  vTangent = normalize(mv * aTangent);
+  vTexCoord = aTexCoord;
   gl_Position = uProjection * p;
 }
 `;
@@ -26,93 +32,66 @@ precision mediump float;
 
 in vec3 vPosition;
 in vec3 vNormal;
+in vec3 vTangent;
 in vec2 vTexCoord;
 
 uniform vec3 uLightPos;
-uniform vec3 uLightPosTwo;
-uniform vec3 uColor;
-
-uniform bool uLightOneEnabled;
-uniform bool uLightTwoEnabled;
-
 uniform sampler2D uTexture;
-uniform bool uUseTexture;
+uniform int uMapping;  // 0 = bump mapping, 1 = normal mapping
 
 out vec4 fragColor;
 
+const float bumpScale = 3.0;
+
+// convert RGB to luminance (Rec._601 standard, https://en.wikipedia.org/wiki/Rec._601)
+// or you can use a height map texture
+float height(vec2 uv) {
+  vec3 c = texture(uTexture, uv).rgb;
+  return 1.0 - dot(c, vec3(0.299, 0.587, 0.114));
+}
+
 void main() {
-  // Brighter material colors
-  vec3 Ka = 0.2 * uColor;
-  vec3 Kd = 0.8 * uColor;
+  // Tangent frame (T, B, N)
+  vec3 N = normalize(vNormal);
+  vec3 T = normalize(vTangent - dot(vTangent, N) * N);
+  vec3 B = cross(N, T);
+  mat3 TBN = mat3(T, B, N);
+
+  vec3 baseColor;
+  vec3 n;
+
+  if (uMapping == 0) {
+    // Bump mapping: tilt the normal against the gradient of the height field
+    vec2 du = vec2(1.0 / float(textureSize(uTexture, 0).x), 0.0);
+    vec2 dv = vec2(0.0, 1.0 / float(textureSize(uTexture, 0).y));
+    float dhdu = (height(vTexCoord + du) - height(vTexCoord - du)) * 0.5;
+    float dhdv = (height(vTexCoord + dv) - height(vTexCoord - dv)) * 0.5;
+    n = normalize(vec3(-bumpScale * dhdu, -bumpScale * dhdv, 1.0));
+    baseColor = texture(uTexture, vTexCoord).rgb;
+  } else {
+    // Normal mapping: the texture stores the tangent-space normal in [0, 1]
+    n = normalize(texture(uTexture, vTexCoord).rgb * 2.0 - 1.0);
+    baseColor = vec3(0.85, 0.65, 0.3);
+  }
+
+  vec3 Ka = 0.2 * baseColor;
+  vec3 Kd = 0.8 * baseColor;
   vec3 Ks = vec3(0.5);
   float shininess = 32.0;
 
-  vec3 N = normalize(vNormal);
+  N = normalize(TBN * n);
+  vec3 L = normalize(uLightPos - vPosition);
   vec3 V = normalize(-vPosition);
+  vec3 R = reflect(-L, N);
 
-  // First light
-  vec3 L1 = normalize(uLightPos - vPosition);
-  vec3 R1 = reflect(-L1, N);
+  float diff = max(dot(N, L), 0.0);
+  float spec = pow(max(dot(V, R), 0.0), shininess);
 
-  float diff1 = max(dot(N, L1), 0.0);
-  float spec1 = 0.0;
-
-  if (diff1 > 0.0) {
-    spec1 = pow(max(dot(V, R1), 0.0), shininess);
-  }
-
-  // Second light
-  vec3 L2 = normalize(uLightPosTwo - vPosition);
-  vec3 R2 = reflect(-L2, N);
-
-  float diff2 = max(dot(N, L2), 0.0);
-  float spec2 = 0.0;
-
-  if (diff2 > 0.0) {
-    spec2 = pow(max(dot(V, R2), 0.0), shininess);
-  }
-
-  if (!uLightOneEnabled) {
-    diff1 = 0.0;
-    spec1 = 0.0;
-  }
-
-  if (!uLightTwoEnabled) {
-      diff2 = 0.0;
-      spec2 = 0.0;
-  }
-
-  // Combine lighting
-  vec3 lighting;
-  // Select textured or plain material
-  vec3 baseColor = uColor;
-
-  if (!uUseTexture) {
-    // Slightly brighter than the original single-light shader
-    lighting = 0.3 * uColor
-         + 0.8 * uColor * (diff1 + diff2)
-         + vec3(0.35) * (spec1 + spec2);
-  } else {
-    // Two lights for the textured sphere
-    lighting = Ka
-            + Kd * (diff1 + diff2)
-            + Ks * (spec1 + spec2);
-  }
-  if (uUseTexture) {
-    baseColor *= texture(uTexture, vTexCoord).rgb;
-  }
-  vec3 finalColor = uUseTexture
-    ? baseColor * lighting
-    : lighting;
-
-  fragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
-}
-`;
-
+  fragColor = vec4(Ka + Kd * diff + Ks * spec, 1.0);
+}`;
 // WebGL setup
 const canvas = document.getElementById("glcanvas");
 const gl = canvas.getContext("webgl2");
-
 function compile(type, source) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
@@ -121,8 +100,7 @@ function compile(type, source) {
   return shader;
 }
 
-// Fixed attribute slots, so the meshes stay valid when the shaders are recompiled
-const ATTRIBUTES = { aPosition: 0, aNormal: 1, aTexCoord: 2 };
+const ATTRIBUTES = { aPosition: 0, aNormal: 1, aTexCoord: 2, aTangent: 3 };
 
 function createProgram(vsSource, fsSource) {
   const prog = gl.createProgram();
@@ -141,88 +119,88 @@ const shaderError = document.getElementById("shaderError");
 vertEditor.value = VERTEX_SHADER;
 fragEditor.value = FRAGMENT_SHADER;
 
-let program, uModelView, uProjection;
-let uLightPos, uLightPosTwo, uColor;
-let uLightOneEnabled, uLightTwoEnabled;
-let uTexture,uUseTexture;
+let program, uModelView, uProjection, uLightPos, uMapping;
 
 function updateProgram() {
   try {
     const prog = createProgram(vertEditor.value, fragEditor.value);
-    if (program) gl.deleteProgram(program);
-    // gl.deleteProgram(program);
+    gl.deleteProgram(program);
     program = prog;
     gl.useProgram(program);
     uModelView = gl.getUniformLocation(program, "uModelView");
     uProjection = gl.getUniformLocation(program, "uProjection");
-    uLightPos = gl.getUniformLocation(program, "uLightPos");  //firts light
-    uLightPosTwo = gl.getUniformLocation(program, "uLightPosTwo"); //for second light
-    uColor = gl.getUniformLocation(program, "uColor");
-    uLightOneEnabled = gl.getUniformLocation(program, "uLightOneEnabled");
-    uLightTwoEnabled = gl.getUniformLocation(program, "uLightTwoEnabled");
-    uTexture = gl.getUniformLocation(program, "uTexture");
-    uUseTexture = gl.getUniformLocation(program, "uUseTexture");
+    uLightPos = gl.getUniformLocation(program, "uLightPos");
+    uMapping = gl.getUniformLocation(program, "uMapping");
+    gl.uniform1i(gl.getUniformLocation(program, "uTexture"), 0);
     shaderError.textContent = "";
   } catch (e) {
-    shaderError.textContent = e.message.replace(/\0/g, "");  // some drivers end the log with \0
+    shaderError.textContent = e.message.replace(/\0/g, "");
   }
 }
 updateProgram();
 vertEditor.addEventListener("input", updateProgram);
 fragEditor.addEventListener("input", updateProgram);
 
-function bindAttribute(name, data) {
+function bindAttribute(name, data, size) {
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-  gl.vertexAttribPointer(ATTRIBUTES[name], 3, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(ATTRIBUTES[name], size, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(ATTRIBUTES[name]);
 }
 
-
-function createMesh({ positions, normals, indices, texCoords }) {
+function createMesh({ positions, normals, tangents, texCoords, indices }) {
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
-
-  bindAttribute("aPosition", positions);
-  bindAttribute("aNormal", normals);
-
-  if (texCoords) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(2);
-  }
-
+  bindAttribute("aPosition", positions, 3);
+  bindAttribute("aNormal", normals, 3);
+  bindAttribute("aTangent", tangents, 3);
+  bindAttribute("aTexCoord", texCoords, 2);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-
-  gl.bindVertexArray(null);
-
   return { vao, count: indices.length };
 }
 
-
-const sphereMesh = createMesh(createSphere(16));
-const octagonMesh = createMesh(createOctagon());
-const furMesh = createMesh(createOctagonFur(2500));
 const cubeMesh = createMesh(createCube());
-const cylinderMesh = createMesh(createCylinder(32));
+const cylinderMesh = createMesh(createCylinder());
+const createSphereMesh = createMesh(createSphere(16));
+const createOctagonMesh = createMesh(createOctagon());
+const createTorusMesh = createMesh(createTorus(0.35, 0.12, 48, 24));
+
+function loadTexture(url) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 128, 255, 255]));
+
+  const image = new Image();
+  image.onload = () => {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);  // images start at the top row, texture coordinates at the bottom
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  };
+  image.src = url;
+  return texture;
+}
+
+const brickTexture = loadTexture("lightShow.gif");
+const normalTexture = loadTexture("texture2.jpg");
+
+const BUMP_MAPPING = 0, NORMAL_MAPPING = 1;
+const objects = [
+  { mesh: cubeMesh, texture: brickTexture, mapping: BUMP_MAPPING, offset: [-1.8, -1, 0] },
+  { mesh: cylinderMesh, texture: normalTexture, mapping: BUMP_MAPPING, offset: [1.8, -1, 0] },
+  { mesh: createSphereMesh, texture: normalTexture, mapping: BUMP_MAPPING, offset: [0, 2, 0] },
+  { mesh: createOctagonMesh, texture: normalTexture, mapping: NORMAL_MAPPING, offset: [-2, 2, 0] },
+  { mesh: createTorusMesh, texture: normalTexture, mapping: NORMAL_MAPPING, offset: [2, 2, 0] }
+];
 
 gl.enable(gl.DEPTH_TEST);
 gl.clearColor(0, 0, 0, 1);
 const projection = perspective(Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
 const lightWorld = [3, 4, 5];
-const lightWorldTwo = [-4, -4, 4];
 
-let furVisible = true;
-let textureVisible = true;
-let upperArmAngle = 0;
-let octagonAngle = 0;
-let lightOneEnabled = true;
-let lightTwoEnabled = true;
-
-// nteractive controls
+// Interactive controls
 let dragRotX = 0, dragRotY = -0.5;      // mouse drag
 let camX = 0, camY = 0, camZ = -7;      // arrow keys, w, s
 let sliderAngle = 0;                    // degrees
@@ -239,7 +217,7 @@ window.addEventListener("mousemove", e => {
 });
 
 document.addEventListener("keydown", e => {
-  if (e.target === vertEditor || e.target === fragEditor) return;  // let the editors use the keys
+  if (e.target === vertEditor || e.target === fragEditor) return;
   const step = 0.2;
   switch (e.key) {
     case "ArrowUp": camY -= step; break;
@@ -250,7 +228,7 @@ document.addEventListener("keydown", e => {
     case "s": camZ -= step; break;
     default: return;
   }
-  e.preventDefault();  // keep the arrow keys from scrolling the page
+  e.preventDefault();
 });
 
 const axisSelect = document.getElementById("axisSelect");
@@ -260,104 +238,6 @@ document.getElementById("slider").addEventListener("input", e => {
 });
 document.getElementById("spinButton").addEventListener("click", () => spinning = !spinning);
 
-
-function createNode(mesh, color, shape) {
-  return { mesh, color, shape, joint: null, children: [] };
-}
-
-// Lower arm: scale the cylinder then move it up by 0.6 so its bottom sits at the joint
-const lowerArm = createNode(cylinderMesh, [1, 0.2, 0.2],
-  multiply(translate(0, 0.6, 0), scale(0.3, 0.6, 0.3)));
-
-// Upper arm: scale the cube then move it up by 0.5 so its bottom sits at the joint
-const upperArm = createNode(cubeMesh, [0.2, 0.4, 1],
-  multiply(translate(0, 0.5, 0), scale(0.2, 0.5, 0.2)));
-
-const upperArmTwo = createNode(octagonMesh, [0.2, 1.0, 0.2], scale(0.3, 0.3, 0.3));
-const fur = createNode(furMesh,[0.25, .65, 0.12],scale(0.35, 0.35, 0.35));
-const upperArmThree = createNode(sphereMesh, [1.0, 1.0, 1.0],scale(0.25, 0.25, 0.25));
-
-lowerArm.children.push(upperArm);
-upperArm.children.push(upperArmTwo);
-upperArmTwo.children.push(fur);
-upperArmTwo.children.push(upperArmThree);
-
-function drawNode(node, frame) {
-  gl.uniformMatrix4fv(
-    uModelView,
-    false,
-    multiply(frame, node.shape)
-  );
-
-  gl.uniform3fv(uColor, node.color);
-  gl.bindVertexArray(node.mesh.vao);
-
-  const useTexture = node.mesh === sphereMesh && textureVisible;
-  gl.uniform1i(uUseTexture, useTexture ? 1 : 0);
-
-  if (node.mesh === sphereMesh) {
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, sphereTexture);
-    gl.uniform1i(uTexture, 0);
-  }
-
-  gl.drawElements(
-    gl.TRIANGLES,
-    node.mesh.count,
-    gl.UNSIGNED_SHORT,
-    0
-  );
-}
-
-//Data structure
-function drawTree(root, rootFrame) {
-  const stack = [[root, rootFrame]];
-  while (stack.length > 0) {
-    const [node, parentFrame] = stack.pop();
-    const frame = multiply(parentFrame, node.joint);
-    // drawNode(node, frame);
-    if (node !== fur || furVisible) {
-      drawNode(node, frame);
-    }
-    for (const child of node.children) stack.push([child, frame]);
-  }
-}
-
-const sphereTexture = gl.createTexture();
-
-gl.bindTexture(gl.TEXTURE_2D, sphereTexture);
-
-// Temporary pixel while the JPG loads
-gl.texImage2D(
-  gl.TEXTURE_2D,
-  0,
-  gl.RGBA,
-  1,
-  1,
-  0,
-  gl.RGBA,
-  gl.UNSIGNED_BYTE,
-  new Uint8Array([255, 255, 255, 255])
-);
-
-const image = new Image();
-image.onload = function () {
-  gl.bindTexture(gl.TEXTURE_2D, sphereTexture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    image
-  );
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-};
-image.src = "sand.jpg";
-
 // Render loop
 let lastTime = 0;
 function render(time) {
@@ -366,66 +246,21 @@ function render(time) {
   lastTime = t;
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // Camera moves with the keys; the light stays fixed in the world.
   const view = translate(camX, camY, camZ);
   gl.uniformMatrix4fv(uProjection, false, projection);
   gl.uniform3fv(uLightPos, transformPoint(view, lightWorld));
-  gl.uniform3fv(uLightPosTwo, transformPoint(view, lightWorldTwo));
-  gl.uniform1i(uLightOneEnabled,lightOneEnabled ? 1 : 0);
-  gl.uniform1i(uLightTwoEnabled,lightTwoEnabled ? 1 : 0);
 
-  // Whole-model rotation
   const axisRotation = ROTATE[axisSelect.value](sliderAngle * Math.PI / 180 + spinAngle);
   const rotation = multiply(multiply(rotateY(dragRotY), rotateX(dragRotX)), axisRotation);
 
-  // Lower arm (root)
-  lowerArm.joint = multiply(multiply(translate(0, -2, 0), rotation), rotateZ(0.5 * Math.sin(t)));
-
-  // Upper arm (child)
-  upperArm.joint = multiply(translate(0, 1.2, 0), rotateZ(upperArmAngle + Math.sin(1.5 * t)));
-
-  upperArmTwo.joint = multiply(translate(0, 1.0, 0), rotateZ(octagonAngle + Math.sin(2.0 * t)));
-  fur.joint = translate(0, 0, 0);
-  upperArmThree.joint = multiply(translate(0, 0.3, 0), rotateZ(Math.sin(2.5 * t)));
-
-  drawTree(lowerArm, view);
+  gl.activeTexture(gl.TEXTURE0);
+  for (const { mesh, texture, mapping, offset } of objects) {
+    gl.uniformMatrix4fv(uModelView, false, multiply(view, multiply(translate(...offset), rotation)));
+    gl.uniform1i(uMapping, mapping);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindVertexArray(mesh.vao);
+    gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
+  }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
-
-document.getElementById("upperArmAngle")
-  .addEventListener("input", e => {
-    upperArmAngle = Number(e.target.value) * Math.PI / 180;
-  });
-
-document.getElementById("octagonAngle")
-  .addEventListener("input", e => {
-    octagonAngle = Number(e.target.value) * Math.PI / 180;
-  });
-
-document.getElementById("fur").addEventListener("click", () => {
-  furVisible = !furVisible;
-
-  document.getElementById("fur").textContent =
-    furVisible ? "Fur Off" : "Fur On";
-});
-
-document.getElementById("sand").addEventListener("click", () => {
-  textureVisible = !textureVisible;
-
-  document.getElementById("sand").textContent =
-    textureVisible ? "Sand off" : "Sand on";
-});
-document.getElementById("lOne").addEventListener("click", () => {
-  lightOneEnabled = !lightOneEnabled;
-
-  document.getElementById("lOne").textContent =
-    lightOneEnabled ? "Light One On" : "Light One Off";
-});
-
-document.getElementById("lTwo").addEventListener("click", () => {
-  lightTwoEnabled = !lightTwoEnabled;
-
-  document.getElementById("lTwo").textContent =
-    lightTwoEnabled ? "Light Two On" : "Light Two Off";
-});
