@@ -195,7 +195,7 @@ async function loadAnimatedGif(url) {
   function update(time) {
     if (lastFrameTime === null) lastFrameTime = time;
 
-    const delay = (frames[currentFrame].delay || 10) * 10;
+    const delay = (frames[currentFrame].delay || 10) *1;
 
     if (time - lastFrameTime >= delay) {
       const frame = frames[currentFrame];
@@ -253,10 +253,11 @@ const BUMP_MAPPING = 0, NORMAL_MAPPING = 1;
 let objects = [];
 async function initScene() {
   // Load static texture right away
-  const normalTexture = loadTexture("texture2.jpg");
+  const normalTexture = loadTexture("aluminum.png");
   const eggTexture = loadTexture("skin.jpg");
+  
   // Await animated GIF loading so texture references are valid
-  lightGifTexture = await loadAnimatedGif("lightShow.gif");
+  lightGifTexture = await loadAnimatedGif("labb.gif");
   fishGifTexture = await loadAnimatedGif("fish.gif");
   torusTexture = await loadAnimatedGif("flow.gif");
   // Define objects after textures are fully loaded and valid
